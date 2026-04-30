@@ -353,7 +353,6 @@ async function runMain() {
 
   const inputs = getInputs();
   debugLogsEnabled = parseBooleanInput(inputs.debugLogs);
-  debugLog(`Resolved config: ${JSON.stringify(inputs, null, 2)}`);
 
   const fullImage = buildImageReference(inputs);
 
