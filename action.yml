@@ -1,0 +1,16 @@
+name: "Start Wiz Sensor"
+description: "Runs the Wiz Sensor in the background."
+author: "Wiz"
+inputs:
+  token:
+    description: "Token containing sensor configuration"
+    required: true
+
+runs:
+  using: "node24"
+  main: "dist/main/index.js"
+  post: "dist/post/index.js"
+
+branding:
+  icon: "shield"
+  color: "blue"

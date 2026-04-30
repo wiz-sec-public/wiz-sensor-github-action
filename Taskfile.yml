@@ -1,0 +1,17 @@
+version: "3"
+
+tasks:
+  build:
+    desc: Bundle main.js and post.js into dist/ via ncc.
+    sources:
+      - main.js
+      - post.js
+      - sensor-action.js
+      - package.json
+      - package-lock.json
+    generates:
+      - dist/main/index.js
+      - dist/post/index.js
+    cmds:
+      - npm ci --no-audit --no-fund --silent
+      - npm run build
