@@ -15,7 +15,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: wiz-sec/wiz-sensor-github-action@v0.9
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9
         with:
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
       # ... your build steps
