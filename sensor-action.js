@@ -4,6 +4,9 @@ const { spawn } = require("child_process");
 const STARTED_STATE_KEY = "WIZ_SENSOR_STARTED";
 const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
 const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
+const SENSOR_REGISTRY_URL = "wizio.azurecr.io";
+const SENSOR_IMAGE_NAME = "sensor";
+const SENSOR_CONTAINER_NAME = "wiz-sensor";
 
 let debugLogsEnabled = false;
 
@@ -170,15 +173,26 @@ function parseExtraEnv(payload) {
   return value;
 }
 
+function getEnvEntryName(entry) {
+  return entry.split("=", 1)[0];
+}
+
+function logDisabledExtraEnv(extraEnv) {
+  if (extraEnv.length === 0) {
+    return;
+  }
+
+  const entryNames = extraEnv.map(getEnvEntryName).join(", ");
+  emitNotice(`token field extra-env is currently disabled; not passing entries to the sensor yet: ${entryNames}`);
+}
+
 function getInputs() {
   const TOKEN_INPUT_NAME = "token";
   const TOKEN_FIELDS = [
     { tokenKey: "registry-username", outputName: "registryUsername", required: true },
     { tokenKey: "registry-password", outputName: "registryPassword", required: true },
-    { tokenKey: "registry-url", outputName: "registryUrl", defaultValue: "wizio.azurecr.io" },
     { tokenKey: "wiz-api-client-id", outputName: "wizApiClientId", required: true },
     { tokenKey: "wiz-api-client-secret", outputName: "wizApiClientSecret", required: true },
-    { tokenKey: "image", outputName: "image", defaultValue: "sensor" },
     { tokenKey: "tag", outputName: "tag", defaultValue: "v1" },
     { tokenKey: "backend-env", outputName: "backendEnv", defaultValue: "prod" },
     { tokenKey: "wait-for-ready", outputName: "waitForReady", defaultValue: "true" },
@@ -208,6 +222,8 @@ function getInputs() {
   }
 
   resolved.extraEnv = parseExtraEnv(payload);
+  resolved.registryUrl = SENSOR_REGISTRY_URL;
+  resolved.image = SENSOR_IMAGE_NAME;
 
   return resolved;
 }
@@ -241,7 +257,7 @@ async function hasInstalledSelfHostedSensor() {
 }
 
 function buildImageReference(inputs) {
-  return `${inputs.registryUrl}/${inputs.image}:${inputs.tag}`;
+  return `${SENSOR_REGISTRY_URL}/${SENSOR_IMAGE_NAME}:${inputs.tag}`;
 }
 
 function collectPassthroughEnv() {
@@ -264,7 +280,6 @@ function collectPassthroughEnv() {
 }
 
 function buildDockerRunArgs(fullImage, inputs) {
-  const SENSOR_CONTAINER_NAME = "sensor";
   const dockerEnv = {
     WIZ_HOST_STORE: "/wiz-sensor-store/",
     WIZ_TMP_STORE: "/wiz-sensor-store/tmp_store/",
@@ -294,9 +309,8 @@ function buildDockerRunArgs(fullImage, inputs) {
     args.push("--env", `${name}=${value}`);
   }
 
-  for (const entry of inputs.extraEnv) {
-    args.push("--env", entry);
-  }
+  // Keep parsing extra-env, but do not pass it to Docker until support is enabled.
+  logDisabledExtraEnv(inputs.extraEnv);
 
   args.push(
     "-v",
