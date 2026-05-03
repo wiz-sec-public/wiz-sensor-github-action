@@ -4,9 +4,9 @@ const { spawn } = require("child_process");
 const STARTED_STATE_KEY = "WIZ_SENSOR_STARTED";
 const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
 const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
-const SENSOR_REGISTRY_URL = "wizio.azurecr.io";
-const SENSOR_IMAGE_NAME = "sensor";
-const SENSOR_CONTAINER_NAME = "wiz-sensor";
+const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
+const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
+const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
 
 let debugLogsEnabled = false;
 
@@ -34,6 +34,20 @@ function getRawInput(name) {
   const githubEnvName = `INPUT_${name.replace(/ /g, "_").toUpperCase()}`;
   const compatEnvName = `INPUT_${name.replace(/ /g, "_").replace(/-/g, "_").toUpperCase()}`;
   return process.env[githubEnvName] || process.env[compatEnvName] || "";
+}
+
+function getInput(name, defaultValue = "") {
+  return getRawInput(name) || defaultValue;
+}
+
+function getTrimmedInput(name, defaultValue = "") {
+  const value = getInput(name, defaultValue).trim();
+
+  if (!value) {
+    throw new Error(`Input ${name} must not be empty`);
+  }
+
+  return value;
 }
 
 function isLinuxRunner() {
@@ -119,20 +133,12 @@ async function ensureDockerAvailable() {
   await runCommand("docker", ["ps"]);
 }
 
-function coerceTokenValue(value, keyName) {
-  if (value === undefined || value === null) {
-    return "";
-  }
-
+function requireTokenString(value, keyName) {
   if (typeof value === "string") {
     return value;
   }
 
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  throw new Error(`token field ${keyName} must be a string-compatible value`);
+  throw new Error(`token field ${keyName} must be a string`);
 }
 
 function decodeTokenPayload(token) {
@@ -151,52 +157,32 @@ function decodeTokenPayload(token) {
   return parsed;
 }
 
-function parseExtraEnv(payload) {
-  if (!Object.prototype.hasOwnProperty.call(payload, "extra-env")) {
+function parseExtraEnv(value) {
+  if (!value) {
     return [];
   }
 
-  const value = payload["extra-env"];
+  const entries = String(value)
+    .split(/\r?\n/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 
-  if (!Array.isArray(value)) {
-    throw new Error("token field extra-env must be an array of strings");
-  }
-
-  for (const entry of value) {
-    if (typeof entry !== "string" || !/^[^=\s]+=/.test(entry)) {
-      throw new Error(
-        `token field extra-env entries must be strings in "KEY=VALUE" format (got ${JSON.stringify(entry)})`,
-      );
+  for (const entry of entries) {
+    if (!/^[^=\s]+=/.test(entry)) {
+      throw new Error(`input extra-env entries must be in "KEY=VALUE" format (got ${JSON.stringify(entry)})`);
     }
   }
 
-  return value;
-}
-
-function getEnvEntryName(entry) {
-  return entry.split("=", 1)[0];
-}
-
-function logDisabledExtraEnv(extraEnv) {
-  if (extraEnv.length === 0) {
-    return;
-  }
-
-  const entryNames = extraEnv.map(getEnvEntryName).join(", ");
-  emitNotice(`token field extra-env is currently disabled; not passing entries to the sensor yet: ${entryNames}`);
+  return entries;
 }
 
 function getInputs() {
   const TOKEN_INPUT_NAME = "token";
-  const TOKEN_FIELDS = [
-    { tokenKey: "registry-username", outputName: "registryUsername", required: true },
-    { tokenKey: "registry-password", outputName: "registryPassword", required: true },
-    { tokenKey: "wiz-api-client-id", outputName: "wizApiClientId", required: true },
-    { tokenKey: "wiz-api-client-secret", outputName: "wizApiClientSecret", required: true },
-    { tokenKey: "tag", outputName: "tag", defaultValue: "v1" },
-    { tokenKey: "backend-env", outputName: "backendEnv", defaultValue: "prod" },
-    { tokenKey: "wait-for-ready", outputName: "waitForReady", defaultValue: "true" },
-    { tokenKey: "debug-logs", outputName: "debugLogs", defaultValue: "false" },
+  const REQUIRED_TOKEN_FIELDS = [
+    ["registry-username", "registryUsername"],
+    ["registry-password", "registryPassword"],
+    ["wiz-api-client-id", "wizApiClientId"],
+    ["wiz-api-client-secret", "wizApiClientSecret"],
   ];
 
   const token = getRawInput(TOKEN_INPUT_NAME);
@@ -207,23 +193,35 @@ function getInputs() {
 
   const payload = decodeTokenPayload(token);
   const resolved = {};
+  const allowedTokenFields = new Set(REQUIRED_TOKEN_FIELDS.map(([tokenKey]) => tokenKey));
+  const unknownTokenFields = Object.keys(payload).filter((tokenKey) => !allowedTokenFields.has(tokenKey));
 
-  for (const field of TOKEN_FIELDS) {
-    const raw = Object.prototype.hasOwnProperty.call(payload, field.tokenKey)
-      ? coerceTokenValue(payload[field.tokenKey], field.tokenKey)
-      : "";
-    const value = raw || field.defaultValue || "";
-
-    if (field.required && !value) {
-      throw new Error(`Missing required token field: ${field.tokenKey}`);
-    }
-
-    resolved[field.outputName] = value;
+  if (unknownTokenFields.length > 0) {
+    throw new Error(`Unexpected token field(s): ${unknownTokenFields.join(", ")}`);
   }
 
-  resolved.extraEnv = parseExtraEnv(payload);
-  resolved.registryUrl = SENSOR_REGISTRY_URL;
-  resolved.image = SENSOR_IMAGE_NAME;
+  for (const [tokenKey, outputName] of REQUIRED_TOKEN_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(payload, tokenKey)) {
+      throw new Error(`Missing required token field: ${tokenKey}`);
+    }
+
+    const value = requireTokenString(payload[tokenKey], tokenKey);
+
+    if (!value) {
+      throw new Error(`Missing required token field: ${tokenKey}`);
+    }
+
+    resolved[outputName] = value;
+  }
+
+  resolved.tag = getTrimmedInput("tag", "v1");
+  resolved.backendEnv = getTrimmedInput("backend-env", "prod");
+  resolved.waitForReady = parseBooleanInput(getInput("wait-for-ready", "true"));
+  resolved.debugLogs = parseBooleanInput(getInput("debug-logs", "false"));
+  resolved.extraEnv = parseExtraEnv(getRawInput("extra-env"));
+  resolved.sensorRegistryUrl = getTrimmedInput("sensor-registry-url", DEFAULT_SENSOR_REGISTRY_URL);
+  resolved.sensorImageName = getTrimmedInput("sensor-image-name", DEFAULT_SENSOR_IMAGE_NAME);
+  resolved.sensorContainerName = getTrimmedInput("sensor-container-name", DEFAULT_SENSOR_CONTAINER_NAME);
 
   return resolved;
 }
@@ -257,7 +255,7 @@ async function hasInstalledSelfHostedSensor() {
 }
 
 function buildImageReference(inputs) {
-  return `${SENSOR_REGISTRY_URL}/${SENSOR_IMAGE_NAME}:${inputs.tag}`;
+  return `${inputs.sensorRegistryUrl}/${inputs.sensorImageName}:${inputs.tag}`;
 }
 
 function collectPassthroughEnv() {
@@ -309,8 +307,9 @@ function buildDockerRunArgs(fullImage, inputs) {
     args.push("--env", `${name}=${value}`);
   }
 
-  // Keep parsing extra-env, but do not pass it to Docker until support is enabled.
-  logDisabledExtraEnv(inputs.extraEnv);
+  for (const entry of inputs.extraEnv) {
+    args.push("--env", entry);
+  }
 
   args.push(
     "-v",
@@ -320,7 +319,7 @@ function buildDockerRunArgs(fullImage, inputs) {
     "--mount",
     "type=bind,source=/sys/kernel/debug,target=/sys/kernel/debug,readonly",
     "--name",
-    SENSOR_CONTAINER_NAME,
+    inputs.sensorContainerName,
     fullImage,
   );
 
@@ -366,7 +365,7 @@ async function runMain() {
   }
 
   const inputs = getInputs();
-  debugLogsEnabled = parseBooleanInput(inputs.debugLogs);
+  debugLogsEnabled = inputs.debugLogs;
 
   const fullImage = buildImageReference(inputs);
 
@@ -378,7 +377,7 @@ async function runMain() {
     "docker",
     [
       "login",
-      inputs.registryUrl,
+      inputs.sensorRegistryUrl,
       "--username",
       inputs.registryUsername,
       "--password-stdin",
@@ -391,7 +390,7 @@ async function runMain() {
   try {
     await runCommand("docker", ["pull", fullImage]);
   } finally {
-    await runCommand("docker", ["logout", inputs.registryUrl], {
+    await runCommand("docker", ["logout", inputs.sensorRegistryUrl], {
       allowFailure: true,
     });
   }
@@ -409,7 +408,7 @@ async function runMain() {
   saveState(CONTAINER_ID_STATE_KEY, containerId);
   saveState(DEBUG_LOGS_STATE_KEY, debugLogsEnabled ? "true" : "false");
 
-  if (parseBooleanInput(inputs.waitForReady)) {
+  if (inputs.waitForReady) {
     await waitForSensorReady(containerId);
   } else {
     log("Skipping Wiz Sensor readiness check (wait-for-ready=false).");
