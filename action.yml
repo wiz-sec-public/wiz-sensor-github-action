@@ -3,8 +3,39 @@ description: "Runs the Wiz Sensor in the background."
 author: "Wiz"
 inputs:
   token:
-    description: "Token containing sensor configuration"
+    description: "JSON token containing registry credentials and Wiz API client credentials"
     required: true
+  tag:
+    description: "Wiz Sensor image tag"
+    required: false
+    default: "v1"
+  backend-env:
+    description: "Wiz backend environment"
+    required: false
+    default: "prod"
+  wait-for-ready:
+    description: "Wait for the Wiz Sensor to report ready before continuing"
+    required: false
+    default: "true"
+  debug-logs:
+    description: "Enable debug logging for the action"
+    required: false
+    default: "false"
+  extra-env:
+    description: "Newline-delimited KEY=VALUE environment entries to pass to the sensor container"
+    required: false
+  sensor-registry-url:
+    description: "Container registry hostname for the Wiz Sensor image"
+    required: false
+    default: "wizio.azurecr.io"
+  sensor-image-name:
+    description: "Wiz Sensor image name"
+    required: false
+    default: "sensor"
+  sensor-container-name:
+    description: "Docker container name for the Wiz Sensor"
+    required: false
+    default: "wiz-sensor"
 
 runs:
   using: "node24"

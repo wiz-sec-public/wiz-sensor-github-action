@@ -3,8 +3,8 @@
 A GitHub Action that downloads and starts the Wiz Sensor to monitor other steps in the workflow.
 Add it as the first step of a job so the sensor is up before any subsequent step runs.
 
-The action takes a single `token` input. Get the token from the Wiz UI and store it as a
-repository secret.
+The action takes a required `token` input with credentials. Get the token from the Wiz UI
+and store it as a repository secret.
 
 ## Usage
 
@@ -20,6 +20,23 @@ jobs:
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
       # ... your build steps
 ```
+
+The token must be a JSON object with exactly these fields:
+
+```json
+{
+  "registry-username": "...",
+  "registry-password": "...",
+  "wiz-api-client-id": "...",
+  "wiz-api-client-secret": "..."
+}
+```
+
+## Inputs
+
+| Input | Required | Description |
+| --- | --- | --- |
+| `token` | Yes | JSON token containing registry credentials and Wiz API client credentials. |
 
 ## Required permissions
 
