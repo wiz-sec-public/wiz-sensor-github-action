@@ -7,6 +7,7 @@ const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
 const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
+const ACTION_VERSION = "0.91";
 
 let debugLogsEnabled = false;
 
@@ -76,6 +77,10 @@ function saveState(name, value) {
 
 function formatCommand(command, args) {
   return [command, ...args].join(" ");
+}
+
+function elapsedSeconds(startMs) {
+  return ((Date.now() - startMs) / 1000).toFixed(1);
 }
 
 async function runCommand(command, args, options = {}) {
@@ -214,7 +219,7 @@ function getInputs() {
     resolved[outputName] = value;
   }
 
-  resolved.tag = getTrimmedInput("tag", "v1");
+  resolved.tag = getTrimmedInput("tag", "github_runner_private_preview");
   resolved.backendEnv = getTrimmedInput("backend-env", "prod");
   resolved.waitForReady = parseBooleanInput(getInput("wait-for-ready", "true"));
   resolved.debugLogs = parseBooleanInput(getInput("debug-logs", "false"));
@@ -291,6 +296,8 @@ function buildDockerRunArgs(fullImage, inputs) {
     JSON: "true",
     STDOUT_LOG: "true",
     WIZ_DEPLOYMENT_INFO: "github_hosted_runner",
+    WIZ_GITHUB_ACTION_VERSION: ACTION_VERSION,
+    WIZ_CGROUP_LIMITS_AFTER_INIT: "true",
     ...collectPassthroughEnv(),
   };
 
@@ -328,6 +335,8 @@ function buildDockerRunArgs(fullImage, inputs) {
 
 async function waitForSensorReady(containerId) {
   const READY_CHECK_TIMEOUT_S = 120;
+  const startMs = Date.now();
+  log("Waiting for Wiz Sensor readiness.");
   const result = await runCommand(
     "docker",
     [
@@ -345,6 +354,7 @@ async function waitForSensorReady(containerId) {
     throw new Error(`Wiz Sensor failed to become ready within ${READY_CHECK_TIMEOUT_S} seconds`);
   }
 
+  debugLog(`Wiz Sensor readiness completed after ${elapsedSeconds(startMs)}s.`);
   log("Wiz Sensor started successfully!");
 }
 
@@ -372,6 +382,7 @@ async function runMain() {
   await ensureDockerAvailable();
 
   log(`Pulling Wiz Sensor image ${fullImage}`);
+  const pullStartMs = Date.now();
 
   await runCommand(
     "docker",
@@ -394,6 +405,7 @@ async function runMain() {
       allowFailure: true,
     });
   }
+  debugLog(`Docker pull completed after ${elapsedSeconds(pullStartMs)}s.`);
 
   const runResult = await runCommand("docker", buildDockerRunArgs(fullImage, inputs));
   const containerId = runResult.stdout.trim().split(/\r?\n/).find(Boolean) || "";
