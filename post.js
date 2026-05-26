@@ -21,7 +21,8 @@ function emitWarning(message) {
   console.log(`::warning::${message}`);
 }
 
-async function runCommand(command, args) {
+async function runCommand(command, args, options = {}) {
+  const { allowFailure = false } = options;
   const commandLine = [command, ...args].join(" ");
   debugLog(`Running command: ${commandLine}`);
 
@@ -50,6 +51,12 @@ async function runCommand(command, args) {
       debugLog(
         `Command finished: ${commandLine}\n  exit code: ${code}\n  stdout: ${stdout}\n  stderr: ${stderr}`,
       );
+
+      if (code !== 0 && !allowFailure) {
+        reject(new Error(`Command failed with exit code ${code}: ${commandLine}`));
+        return;
+      }
+
       resolve({ code, stdout, stderr });
     });
   });
@@ -70,17 +77,22 @@ async function runPost() {
   }
 
   debugLog(`Sending stop command to sensor container ${containerId}`);
-  const result = await runCommand("docker", [
-    "stop",
-    "--time",
-    String(SENSOR_STOP_TIMEOUT_S),
-    containerId,
-  ]);
+  const result = await runCommand(
+    "docker",
+    [
+      "stop",
+      "--time",
+      String(SENSOR_STOP_TIMEOUT_S),
+      containerId,
+    ],
+    { allowFailure: true },
+  );
   debugLog(`Stop command returned for sensor container ${containerId} (exit code ${result.code})`);
 
   if (result.code !== 0) {
     emitWarning(`Failed to stop sensor container ${containerId} gracefully`);
   }
+
 }
 
 runPost().catch((error) => {
