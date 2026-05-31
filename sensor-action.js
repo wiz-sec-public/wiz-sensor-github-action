@@ -298,6 +298,8 @@ function buildDockerRunArgs(fullImage, inputs) {
     WIZ_DEPLOYMENT_INFO: "github_hosted_runner",
     WIZ_GITHUB_ACTION_VERSION: ACTION_VERSION,
     WIZ_CGROUP_LIMITS_AFTER_INIT: "true",
+    WIZ_REGEX_POOL_BACKEND: "std",
+    WIZ_SKIP_LD_OVERRIDES: "true",
     ...collectPassthroughEnv(),
   };
 
