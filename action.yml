@@ -17,6 +17,10 @@ inputs:
     description: "Wait for the Wiz Sensor to report ready before continuing"
     required: false
     default: "true"
+  install-only:
+    description: "Only pull and cache the Wiz Sensor image without starting it. Useful for pre-warming custom GitHub runner images."
+    required: false
+    default: "false"
   debug-logs:
     description: "Enable debug logging for the action"
     required: false

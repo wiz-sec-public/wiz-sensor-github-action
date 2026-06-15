@@ -7,7 +7,7 @@ const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
 const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
-const ACTION_VERSION = "0.91";
+const ACTION_VERSION = "0.9.1";
 
 let debugLogsEnabled = false;
 
@@ -219,6 +219,7 @@ function getInputs() {
     resolved[outputName] = value;
   }
 
+  resolved.installOnly = parseBooleanInput(getInput("install-only", "false"));
   resolved.tag = getTrimmedInput("tag", "github_runner_private_preview");
   resolved.backendEnv = getTrimmedInput("backend-env", "prod");
   resolved.waitForReady = parseBooleanInput(getInput("wait-for-ready", "true"));
@@ -335,6 +336,43 @@ function buildDockerRunArgs(fullImage, inputs) {
   return args;
 }
 
+async function isImageAvailableLocally(fullImage) {
+  const result = await runCommand("docker", ["image", "inspect", fullImage], {
+    allowFailure: true,
+  });
+
+  return result.code === 0;
+}
+
+async function pullSensorImage(inputs, fullImage) {
+  log(`Pulling Wiz Sensor image ${fullImage}`);
+  const pullStartMs = Date.now();
+
+  await runCommand(
+    "docker",
+    [
+      "login",
+      inputs.sensorRegistryUrl,
+      "--username",
+      inputs.registryUsername,
+      "--password-stdin",
+    ],
+    {
+      input: `${inputs.registryPassword}\n`,
+    },
+  );
+
+  try {
+    await runCommand("docker", ["pull", fullImage]);
+  } finally {
+    await runCommand("docker", ["logout", inputs.sensorRegistryUrl], {
+      allowFailure: true,
+    });
+  }
+
+  debugLog(`Docker pull completed after ${elapsedSeconds(pullStartMs)}s.`);
+}
+
 async function waitForSensorReady(containerId) {
   const READY_CHECK_TIMEOUT_S = 120;
   const startMs = Date.now();
@@ -366,7 +404,11 @@ async function runMain() {
     return;
   }
 
-  if (isSelfHostedRunner()) {
+  // install-only mode only pulls and caches the image, so platform-specific
+  // start checks (e.g. self-hosted handling) do not apply.
+  const installOnly = parseBooleanInput(getInput("install-only", "false"));
+
+  if (!installOnly && isSelfHostedRunner()) {
     if (await hasInstalledSelfHostedSensor()) {
       emitNotice("Detected an existing Wiz Sensor installation. Skipping container startup.");
       return;
@@ -383,31 +425,20 @@ async function runMain() {
 
   await ensureDockerAvailable();
 
-  log(`Pulling Wiz Sensor image ${fullImage}`);
-  const pullStartMs = Date.now();
-
-  await runCommand(
-    "docker",
-    [
-      "login",
-      inputs.sensorRegistryUrl,
-      "--username",
-      inputs.registryUsername,
-      "--password-stdin",
-    ],
-    {
-      input: `${inputs.registryPassword}\n`,
-    },
-  );
-
-  try {
-    await runCommand("docker", ["pull", fullImage]);
-  } finally {
-    await runCommand("docker", ["logout", inputs.sensorRegistryUrl], {
-      allowFailure: true,
-    });
+  if (inputs.installOnly) {
+    await pullSensorImage(inputs, fullImage);
+    emitNotice(`install-only mode: Wiz Sensor image ${fullImage} pulled and cached. Skipping sensor startup.`);
+    return;
   }
-  debugLog(`Docker pull completed after ${elapsedSeconds(pullStartMs)}s.`);
+
+  // On runners built from a custom image the sensor image may already be cached
+  // locally (e.g. pulled during image generation with install-only). In that
+  // case skip the registry login and pull and start from the cached image.
+  if (await isImageAvailableLocally(fullImage)) {
+    log(`Wiz Sensor image ${fullImage} is already available locally. Skipping registry login and pull.`);
+  } else {
+    await pullSensorImage(inputs, fullImage);
+  }
 
   const runResult = await runCommand("docker", buildDockerRunArgs(fullImage, inputs));
   const containerId = runResult.stdout.trim().split(/\r?\n/).find(Boolean) || "";

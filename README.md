@@ -37,6 +37,48 @@ The token must be a JSON object with exactly these fields:
 | Input | Required | Description |
 | --- | --- | --- |
 | `token` | Yes | JSON token containing registry credentials and Wiz API client credentials. |
+| `install-only` | No | Only pull and cache the Wiz Sensor image without starting it. Defaults to `false`. Useful for pre-warming custom GitHub runner images. |
+
+## Pre-warming custom runner images (`install-only`)
+
+When you build a [custom image for GitHub-hosted larger runners](https://docs.github.com/en/actions/how-tos/manage-runners/larger-runners/use-custom-images),
+you can bake the Wiz Sensor image into the image so that it does not have to be
+downloaded on every job. Run the action with `install-only: true` in your
+image-generation (`snapshot`) workflow. In this mode the action pulls the sensor
+image into the local Docker daemon and exits without starting the sensor. The
+same `token` is used as for a normal run.
+
+The Docker image is the only artifact worth caching ahead of time. The sensor
+refreshes its detection content at runtime, so nothing else needs to be prepared
+during image generation.
+
+```yaml
+jobs:
+  build-image:
+    runs-on: my-image-generation-runner
+    snapshot: my-custom-image
+    steps:
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9
+        with:
+          install-only: true
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+      # ... any other tools you want to pre-install
+```
+
+Then, in jobs that run on the custom image, use the action as usual. When the
+sensor image is already cached locally, the action skips the registry login and
+pull and starts the sensor directly from the cached image:
+
+```yaml
+jobs:
+  build:
+    runs-on: my-custom-runner
+    steps:
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9
+        with:
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+      # ... your build steps
+```
 
 ## Required permissions
 
