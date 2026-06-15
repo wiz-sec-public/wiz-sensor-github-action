@@ -15,7 +15,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.2
         with:
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
       # ... your build steps
@@ -58,7 +58,7 @@ jobs:
     runs-on: my-image-generation-runner
     snapshot: my-custom-image
     steps:
-      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.2
         with:
           install-only: true
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
@@ -74,7 +74,7 @@ jobs:
   build:
     runs-on: my-custom-runner
     steps:
-      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.2
         with:
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
       # ... your build steps
