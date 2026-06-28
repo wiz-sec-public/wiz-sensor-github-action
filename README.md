@@ -102,3 +102,7 @@ runner already has a Wiz Sensor process running, the action detects it and skips
 startup. Otherwise, the action emits a warning and skips.
 
 For self-hosted runners, install and manage the Wiz Sensor on the runner host ahead of time.
+
+# License
+
+Use of 'wiz-sensor-github-action' is subject to the Wiz Subscription Agreement available at https://legal.wiz.io/legal#wiz-subscription-agreement.
