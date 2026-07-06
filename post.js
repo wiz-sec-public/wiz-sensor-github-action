@@ -7,10 +7,13 @@ const STARTED_STATE_KEY = "WIZ_SENSOR_STARTED";
 const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
 const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
 const GENERATE_SUPPORT_PACKAGE_STATE_KEY = "WIZ_SENSOR_GENERATE_SUPPORT_PACKAGE";
+const SUCCESS_STATE_KEY = "WIZ_SENSOR_SUCCESS";
 const SENSOR_STOP_TIMEOUT_S = 30;
 const SUPPORT_SCRIPT_URL = "https://downloads.wiz.io/sensor/sensor_support_linux.sh";
 const SUPPORT_PACKAGE_FILENAME = "support_package_linux.tar.gz";
 const ARTIFACT_BASE_NAME = "wiz-sensor-support-package";
+
+const SENSOR_MARKER = "=== Ran with Wiz Sensor Github Action Marker ===";
 
 let debugLogsEnabled = false;
 
@@ -164,6 +167,10 @@ async function runPost() {
   if (!containerId) {
     log("No sensor container ID recorded during post-step cleanup.");
     return;
+  }
+
+  if (process.env[`STATE_${SUCCESS_STATE_KEY}`] === "true") {
+    console.log(`${SENSOR_MARKER} ${process.env.GITHUB_WORKFLOW || ""}`);
   }
 
   debugLog(`Sending stop command to sensor container ${containerId}`);

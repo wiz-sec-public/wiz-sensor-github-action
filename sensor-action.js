@@ -5,6 +5,7 @@ const STARTED_STATE_KEY = "WIZ_SENSOR_STARTED";
 const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
 const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
 const GENERATE_SUPPORT_PACKAGE_STATE_KEY = "WIZ_SENSOR_GENERATE_SUPPORT_PACKAGE";
+const SUCCESS_STATE_KEY = "WIZ_SENSOR_SUCCESS";
 const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
@@ -461,6 +462,8 @@ async function runMain() {
   } else {
     log("Skipping Wiz Sensor readiness check (wait-for-ready=false).");
   }
+
+  saveState(SUCCESS_STATE_KEY, "true");
 }
 
 module.exports = {
