@@ -9,7 +9,7 @@ const SUCCESS_STATE_KEY = "WIZ_SENSOR_SUCCESS";
 const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
-const ACTION_VERSION = "0.9.3";
+const ACTION_VERSION = "0.9.4";
 
 let debugLogsEnabled = false;
 
