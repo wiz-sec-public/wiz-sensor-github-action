@@ -11,7 +11,7 @@ tasks:
       - package-lock.json
     generates:
       - dist/main/index.js
-      - dist/post/index.js
+      - dist/post/*.js
     cmds:
       - npm ci --no-audit --no-fund --silent
       - npm run build

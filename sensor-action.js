@@ -4,6 +4,7 @@ const { spawn } = require("child_process");
 const STARTED_STATE_KEY = "WIZ_SENSOR_STARTED";
 const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
 const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
+const GENERATE_SUPPORT_PACKAGE_STATE_KEY = "WIZ_SENSOR_GENERATE_SUPPORT_PACKAGE";
 const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
@@ -224,6 +225,7 @@ function getInputs() {
   resolved.backendEnv = getTrimmedInput("backend-env", "prod");
   resolved.waitForReady = parseBooleanInput(getInput("wait-for-ready", "true"));
   resolved.debugLogs = parseBooleanInput(getInput("debug-logs", "false"));
+  resolved.generateSupportPackage = parseBooleanInput(getInput("generate-support-package", "false"));
   resolved.extraEnv = parseExtraEnv(getRawInput("extra-env"));
   resolved.sensorRegistryUrl = getTrimmedInput("sensor-registry-url", DEFAULT_SENSOR_REGISTRY_URL);
   resolved.sensorImageName = getTrimmedInput("sensor-image-name", DEFAULT_SENSOR_IMAGE_NAME);
@@ -452,6 +454,7 @@ async function runMain() {
   saveState(STARTED_STATE_KEY, "true");
   saveState(CONTAINER_ID_STATE_KEY, containerId);
   saveState(DEBUG_LOGS_STATE_KEY, debugLogsEnabled ? "true" : "false");
+  saveState(GENERATE_SUPPORT_PACKAGE_STATE_KEY, inputs.generateSupportPackage ? "true" : "false");
 
   if (inputs.waitForReady) {
     await waitForSensorReady(containerId);

@@ -38,6 +38,33 @@ The token must be a JSON object with exactly these fields:
 | --- | --- | --- |
 | `token` | Yes | JSON token containing registry credentials and Wiz API client credentials. |
 | `install-only` | No | Only pull and cache the Wiz Sensor image without starting it. Defaults to `false`. Useful for pre-warming custom GitHub runner images. |
+| `generate-support-package` | No | Collect a Wiz Sensor support package after the workflow steps finish and upload it as a workflow artifact. Defaults to `false`. |
+
+## Generating a support package
+
+Set `generate-support-package: true` to help Wiz support diagnose sensor issues.
+After the other steps in the job finish, the action's cleanup step downloads and
+runs the official [`sensor_support_linux.sh`](https://downloads.wiz.io/sensor/sensor_support_linux.sh)
+script (as root) while the sensor is still running, then uploads the resulting
+`support_package_linux.tar.gz` as a workflow artifact named
+`wiz-sensor-support-package.tar.gz` (suffixed with the job id when available).
+Download it from the run summary's **Artifacts** section.
+
+```yaml
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.3
+        with:
+          token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+          generate-support-package: true
+      # ... your build steps
+```
+
+Collecting and uploading the support package never fails the job: any error is
+reported as a warning. The upload uses the built-in Actions runtime token and
+does not require any additional workflow `permissions`.
 
 ## Pre-warming custom runner images (`install-only`)
 

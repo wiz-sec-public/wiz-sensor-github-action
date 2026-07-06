@@ -25,6 +25,10 @@ inputs:
     description: "Enable debug logging for the action"
     required: false
     default: "false"
+  generate-support-package:
+    description: "After the workflow steps finish, collect a Wiz Sensor support package and upload it as a workflow artifact for troubleshooting."
+    required: false
+    default: "false"
   extra-env:
     description: "Newline-delimited KEY=VALUE environment entries to pass to the sensor container"
     required: false
