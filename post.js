@@ -9,6 +9,8 @@ const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
 const GENERATE_SUPPORT_PACKAGE_STATE_KEY = "WIZ_SENSOR_GENERATE_SUPPORT_PACKAGE";
 const SUCCESS_STATE_KEY = "WIZ_SENSOR_SUCCESS";
 const SENSOR_STOP_TIMEOUT_S = 30;
+const SENSOR_STORE_PATH = "/opt/wiz/sensor-store";
+const SENSOR_LOG_FILE_PREFIX = "sensor.log";
 const SUPPORT_SCRIPT_URL = "https://downloads.wiz.io/sensor/sensor_support_linux.sh";
 const SUPPORT_PACKAGE_FILENAME = "support_package_linux.tar.gz";
 const ARTIFACT_BASE_NAME = "wiz-sensor-support-package";
@@ -104,6 +106,98 @@ async function uploadSupportPackage(filePath) {
   log(`Uploaded artifact "${fileName}" (${size || 0} bytes${id ? `, id ${id}` : ""}).`);
 }
 
+function get_log_files() {
+  let entries;
+  try {
+    entries = fs.readdirSync(SENSOR_STORE_PATH, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === "ENOENT") {
+      debugLog(`Sensor store path does not exist: ${SENSOR_STORE_PATH}`);
+      return [];
+    }
+
+    emitWarning(
+      `Failed to read Wiz Sensor log directory ${SENSOR_STORE_PATH}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return [];
+  }
+
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.startsWith(SENSOR_LOG_FILE_PREFIX))
+    .map((entry) => path.join(SENSOR_STORE_PATH, entry.name));
+}
+
+function read_log_file(filePath) {
+  try {
+    return fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+  } catch (error) {
+    emitWarning(
+      `Failed to read Wiz Sensor log file ${filePath}: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+    return [];
+  }
+}
+
+function check_line(line) {
+  if (!line.trim()) {
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(line);
+  } catch (error) {
+    return null;
+  }
+
+  if (!parsed || Array.isArray(parsed) || typeof parsed !== "object" || parsed.level !== "ERROR") {
+    return null;
+  }
+
+  return {
+    timestamp: parsed.timestamp === undefined || parsed.timestamp === null ? "" : String(parsed.timestamp),
+    line,
+  };
+}
+
+function sort_line(left, right) {
+  if (left.timestamp < right.timestamp) {
+    return -1;
+  }
+  if (left.timestamp > right.timestamp) {
+    return 1;
+  }
+  return 0;
+}
+
+function printSensorErrorLogs() {
+  const errorLogs = [];
+
+  for (const filePath of get_log_files()) {
+    for (const line of read_log_file(filePath)) {
+      const errorLog = check_line(line);
+      if (errorLog) {
+        errorLogs.push(errorLog);
+      }
+    }
+  }
+
+  errorLogs.sort(sort_line);
+
+  if (errorLogs.length === 0) {
+    return;
+  }
+
+  console.log("Wiz Sensor ERROR logs:");
+  for (const { line } of errorLogs) {
+    console.log(line);
+  }
+}
+
 async function generateAndUploadSupportPackage() {
   const tmpBase = process.env.RUNNER_TEMP || os.tmpdir();
   const workDir = fs.mkdtempSync(path.join(tmpBase, "wiz-support-"));
@@ -190,6 +284,7 @@ async function runPost() {
     emitWarning(`Failed to stop sensor container ${containerId} gracefully`);
   }
 
+  printSensorErrorLogs();
 }
 
 runPost().catch((error) => {
