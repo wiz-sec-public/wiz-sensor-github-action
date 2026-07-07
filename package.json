@@ -1,12 +1,15 @@
 {
   "name": "wiz-sensor-action",
-  "version": "0.0.0",
+  "version": "0.9.4",
   "private": true,
   "description": "Runs the Wiz Sensor in the background.",
   "scripts": {
     "build": "ncc build main.js -o dist/main --minify --no-source-map-register && ncc build post.js -o dist/post --minify --no-source-map-register"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.3"
+    "@vercel/ncc": "^0.44.1"
+  },
+  "dependencies": {
+    "@actions/artifact": "^6.2.1"
   }
 }
