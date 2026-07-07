@@ -2,6 +2,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
+const { DefaultArtifactClient } = require("@actions/artifact");
 
 const STARTED_STATE_KEY = "WIZ_SENSOR_STARTED";
 const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
@@ -93,7 +94,6 @@ async function downloadText(url) {
 }
 
 async function uploadSupportPackage(filePath) {
-  const { DefaultArtifactClient } = await import("@actions/artifact");
   const artifact = new DefaultArtifactClient();
   const fileName = path.basename(filePath);
   const { id, size } = await artifact.uploadArtifact(
