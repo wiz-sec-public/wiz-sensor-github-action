@@ -10,6 +10,6 @@
     "@vercel/ncc": "^0.44.1"
   },
   "dependencies": {
-    "@actions/artifact": "^5.0.3"
+    "@actions/artifact": "^6.2.1"
   }
 }
