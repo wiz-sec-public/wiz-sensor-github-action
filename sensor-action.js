@@ -6,6 +6,7 @@ const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
 const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
 const GENERATE_SUPPORT_PACKAGE_STATE_KEY = "WIZ_SENSOR_GENERATE_SUPPORT_PACKAGE";
 const SUCCESS_STATE_KEY = "WIZ_SENSOR_SUCCESS";
+const SKIPPED_STATE_KEY = "WIZ_SENSOR_SKIPPED";
 const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
@@ -404,6 +405,7 @@ async function waitForSensorReady(containerId) {
 async function runMain() {
   if (!isLinuxRunner()) {
     emitNotice(`Wiz Sensor action runs only on Linux runners. Skipping on ${process.env.RUNNER_OS || "unknown"}.`);
+    saveState(SKIPPED_STATE_KEY, "true");
     return;
   }
 
