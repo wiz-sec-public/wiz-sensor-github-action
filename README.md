@@ -38,6 +38,7 @@ The token must be a JSON object with exactly these fields:
 | --- | --- | --- |
 | `token` | Yes | JSON token containing registry credentials and Wiz API client credentials. |
 | `install-only` | No | Only pull and cache the Wiz Sensor image without starting it. Defaults to `false`. Useful for pre-warming custom GitHub runner images. |
+| `allow-self-hosted` | No | Allow starting the Wiz Sensor container on a self-hosted runner. Defaults to `false`. |
 | `generate-support-package` | No | Collect a Wiz Sensor support package after the workflow steps finish and upload it as a workflow artifact. Defaults to `false`. |
 
 ## Generating a support package
@@ -124,11 +125,22 @@ the token to workflows that run untrusted code, such as pull requests from forks
 
 ## Self-hosted runners
 
-This action does not start the sensor container on self-hosted runners. If a self-hosted
-runner already has a Wiz Sensor process running, the action detects it and skips container
-startup. Otherwise, the action emits a warning and skips.
+By default, this action does not start the sensor container on self-hosted runners. If a
+self-hosted runner already has a Wiz Sensor process running, the action detects it and skips
+container startup. Otherwise, the action emits a warning and skips.
 
-For self-hosted runners, install and manage the Wiz Sensor on the runner host ahead of time.
+To explicitly allow the action to start the container on a self-hosted runner, set
+`allow-self-hosted: true`:
+
+```yaml
+- uses: wiz-sec-public/wiz-sensor-github-action@v0.9.5
+  with:
+    token: ${{ secrets.WIZ_SENSOR_TOKEN }}
+    allow-self-hosted: true
+```
+
+The existing-sensor check still applies when this option is enabled. Only enable it on a
+trusted runner host where the action can start privileged Docker containers.
 
 # License
 

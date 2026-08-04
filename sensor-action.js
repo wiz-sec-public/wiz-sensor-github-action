@@ -412,6 +412,7 @@ async function runMain() {
   // install-only mode only pulls and caches the image, so platform-specific
   // start checks (e.g. self-hosted handling) do not apply.
   const installOnly = parseBooleanInput(getInput("install-only", "false"));
+  const allowSelfHosted = parseBooleanInput(getInput("allow-self-hosted", "false"));
 
   if (!installOnly && isSelfHostedRunner()) {
     if (await hasInstalledSelfHostedSensor()) {
@@ -419,8 +420,10 @@ async function runMain() {
       return;
     }
 
-    emitWarning("Wiz Sensor action is supported only on GitHub-hosted runners. Skipping on self-hosted runner.");
-    return;
+    if (!allowSelfHosted) {
+      emitWarning("Wiz Sensor action is supported only on GitHub-hosted runners. Skipping on self-hosted runner.");
+      return;
+    }
   }
 
   const inputs = getInputs();

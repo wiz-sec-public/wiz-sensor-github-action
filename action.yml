@@ -21,6 +21,10 @@ inputs:
     description: "Only pull and cache the Wiz Sensor image without starting it. Useful for pre-warming custom GitHub runner images."
     required: false
     default: "false"
+  allow-self-hosted:
+    description: "Allow starting the Wiz Sensor container on a self-hosted runner"
+    required: false
+    default: "false"
   debug-logs:
     description: "Enable debug logging for the action"
     required: false
