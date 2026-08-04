@@ -9,6 +9,7 @@ const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
 const DEBUG_LOGS_STATE_KEY = "WIZ_SENSOR_DEBUG_LOGS";
 const GENERATE_SUPPORT_PACKAGE_STATE_KEY = "WIZ_SENSOR_GENERATE_SUPPORT_PACKAGE";
 const SUCCESS_STATE_KEY = "WIZ_SENSOR_SUCCESS";
+const SKIPPED_STATE_KEY = "WIZ_SENSOR_SKIPPED";
 const SENSOR_STOP_TIMEOUT_S = 30;
 const SENSOR_STORE_PATH = "/opt/wiz/sensor-store";
 const SENSOR_LOG_FILE_PREFIX = "sensor.log";
@@ -237,7 +238,16 @@ async function generateAndUploadSupportPackage() {
   }
 }
 
+function printSensorMarker() {
+  console.log(`${SENSOR_MARKER} ${process.env.GITHUB_WORKFLOW || ""}`);
+}
+
 async function runPost() {
+  if (process.env[`STATE_${SKIPPED_STATE_KEY}`] === "true") {
+    printSensorMarker();
+    return;
+  }
+
   if (process.env[`STATE_${STARTED_STATE_KEY}`] !== "true") {
     return;
   }
@@ -264,7 +274,7 @@ async function runPost() {
   }
 
   if (process.env[`STATE_${SUCCESS_STATE_KEY}`] === "true") {
-    console.log(`${SENSOR_MARKER} ${process.env.GITHUB_WORKFLOW || ""}`);
+    printSensorMarker();
   }
 
   debugLog(`Sending stop command to sensor container ${containerId}`);
