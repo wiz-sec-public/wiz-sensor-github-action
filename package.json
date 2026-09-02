@@ -7,7 +7,7 @@
     "build": "ncc build main.js -o dist/main --minify --no-source-map-register && ncc build post.js -o dist/post --minify --no-source-map-register"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.44.1"
+    "@vercel/ncc": "^0.45.0"
   },
   "dependencies": {
     "@actions/artifact": "^5.0.3"
