@@ -1,5 +1,6 @@
 const fs = require("fs");
 const { spawn } = require("child_process");
+const { verifySensorImageSignature } = require("./image-verify");
 
 const STARTED_STATE_KEY = "WIZ_SENSOR_STARTED";
 const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
@@ -238,6 +239,7 @@ function getInputs() {
   resolved.generateSupportPackage = parseBooleanInput(getInput("generate-support-package", "false"));
   resolved.extraEnv = parseExtraEnv(getRawInput("extra-env"));
   resolved.allowCustomRegistry = parseBooleanInput(getInput("allow-custom-registry", "false"));
+  resolved.skipImageVerification = parseBooleanInput(getInput("skip-image-verification", "false"));
   resolved.sensorRegistryUrl = getTrimmedInput("sensor-registry-url", DEFAULT_SENSOR_REGISTRY_URL);
   resolved.sensorImageName = getTrimmedInput("sensor-image-name", DEFAULT_SENSOR_IMAGE_NAME);
   resolved.sensorContainerName = getTrimmedInput("sensor-container-name", DEFAULT_SENSOR_CONTAINER_NAME);
@@ -390,6 +392,66 @@ function buildDockerRunArgs(fullImage, inputs) {
   return args;
 }
 
+async function resolveLocalImageDigest(fullImage, inputs) {
+  const result = await runCommand("docker", [
+    "image",
+    "inspect",
+    "--format",
+    "{{json .RepoDigests}}",
+    fullImage,
+  ]);
+  const repoDigests = JSON.parse(result.stdout.trim());
+  const repository = `${inputs.sensorRegistryUrl}/${inputs.sensorImageName}`.toLowerCase();
+  const entry = (repoDigests || []).find((candidate) => candidate.split("@")[0] === repository);
+
+  if (!entry) {
+    throw new Error(
+      `Could not determine the registry digest of ${fullImage}: the local image carries no digest ` +
+        `for ${repository}. Images loaded outside of docker pull cannot be verified`,
+    );
+  }
+
+  return entry.split("@")[1];
+}
+
+// Returns the immutable digest reference to start the container from, so the
+// verified bytes are the bytes that run, or null when verification fails.
+// Verification failures must never break the customer's workflow: the caller
+// skips sensor startup and the job continues without sensor monitoring.
+async function verifySensorImage(inputs, fullImage) {
+  if (inputs.skipImageVerification) {
+    emitWarning("Skipping Wiz Sensor image signature verification (skip-image-verification=true).");
+    return fullImage;
+  }
+
+  const verifyStartMs = Date.now();
+  let imageDigest;
+
+  try {
+    imageDigest = await resolveLocalImageDigest(fullImage, inputs);
+    await verifySensorImageSignature({
+      registryUrl: inputs.sensorRegistryUrl,
+      imageName: inputs.sensorImageName,
+      imageDigest,
+      username: inputs.registryUsername,
+      password: inputs.registryPassword,
+      debugLog,
+    });
+  } catch (error) {
+    emitWarning(
+      `Wiz Sensor image signature verification failed: ${error.message}. ` +
+        "The Wiz Sensor will not be started from this image; the workflow continues without sensor monitoring. " +
+        "Set skip-image-verification: true only if you intentionally run an image not published by Wiz.",
+    );
+    return null;
+  }
+
+  debugLog(`Image signature verification completed after ${elapsedSeconds(verifyStartMs)}s.`);
+  log(`Verified Wiz Sensor image signature for digest ${imageDigest}.`);
+
+  return `${inputs.sensorRegistryUrl}/${inputs.sensorImageName}@${imageDigest}`;
+}
+
 async function isImageAvailableLocally(fullImage) {
   const result = await runCommand("docker", ["image", "inspect", fullImage], {
     allowFailure: true,
@@ -487,6 +549,7 @@ async function runMain() {
 
   if (inputs.installOnly) {
     await pullSensorImage(inputs, fullImage);
+    await verifySensorImage(inputs, fullImage);
     emitNotice(`install-only mode: Wiz Sensor image ${fullImage} pulled and cached. Skipping sensor startup.`);
     return;
   }
@@ -500,7 +563,13 @@ async function runMain() {
     await pullSensorImage(inputs, fullImage);
   }
 
-  const runResult = await runCommand("docker", buildDockerRunArgs(fullImage, inputs));
+  const verifiedImage = await verifySensorImage(inputs, fullImage);
+
+  if (!verifiedImage) {
+    return;
+  }
+
+  const runResult = await runCommand("docker", buildDockerRunArgs(verifiedImage, inputs));
   const containerId = runResult.stdout.trim().split(/\r?\n/).find(Boolean) || "";
 
   if (!containerId) {
