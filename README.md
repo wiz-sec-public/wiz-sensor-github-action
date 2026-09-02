@@ -40,6 +40,8 @@ The token must be a JSON object with exactly these fields:
 | `install-only` | No | Only pull and cache the Wiz Sensor image without starting it. Defaults to `false`. Useful for pre-warming custom GitHub runner images. |
 | `allow-self-hosted` | No | Allow starting the Wiz Sensor container on a self-hosted runner. Defaults to `false`. |
 | `generate-support-package` | No | Collect a Wiz Sensor support package after the workflow steps finish and upload it as a workflow artifact. Defaults to `false`. |
+| `sensor-registry-url` | No | Container registry hostname for the Wiz Sensor image. Defaults to `wizio.azurecr.io`. Other Wiz registries (e.g. `wizfedramp.azurecr.us` for FedRAMP) are accepted as-is; any non-Wiz registry additionally requires `allow-custom-registry: true`. |
+| `allow-custom-registry` | No | Allow pulling the Wiz Sensor image from a registry that is not a known Wiz registry. Defaults to `false`. |
 
 ## Generating a support package
 

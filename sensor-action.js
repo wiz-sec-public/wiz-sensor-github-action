@@ -8,6 +8,14 @@ const GENERATE_SUPPORT_PACKAGE_STATE_KEY = "WIZ_SENSOR_GENERATE_SUPPORT_PACKAGE"
 const SUCCESS_STATE_KEY = "WIZ_SENSOR_SUCCESS";
 const SKIPPED_STATE_KEY = "WIZ_SENSOR_SKIPPED";
 const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
+// Wiz-operated registries that the sensor image is published to. Any other
+// registry requires the allow-custom-registry opt-in.
+const KNOWN_SENSOR_REGISTRIES = [
+  "wizio.azurecr.io",
+  "registry.wiz.io",
+  "wizfedramp.azurecr.us",
+  "registryfedrampwizio.azurecr.us",
+];
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
 const ACTION_VERSION = "0.9.5";
@@ -229,6 +237,7 @@ function getInputs() {
   resolved.debugLogs = parseBooleanInput(getInput("debug-logs", "false"));
   resolved.generateSupportPackage = parseBooleanInput(getInput("generate-support-package", "false"));
   resolved.extraEnv = parseExtraEnv(getRawInput("extra-env"));
+  resolved.allowCustomRegistry = parseBooleanInput(getInput("allow-custom-registry", "false"));
   resolved.sensorRegistryUrl = getTrimmedInput("sensor-registry-url", DEFAULT_SENSOR_REGISTRY_URL);
   resolved.sensorImageName = getTrimmedInput("sensor-image-name", DEFAULT_SENSOR_IMAGE_NAME);
   resolved.sensorContainerName = getTrimmedInput("sensor-container-name", DEFAULT_SENSOR_CONTAINER_NAME);
@@ -266,6 +275,22 @@ async function hasInstalledSelfHostedSensor() {
 
 function buildImageReference(inputs) {
   return `${inputs.sensorRegistryUrl}/${inputs.sensorImageName}:${inputs.tag}`;
+}
+
+function validateRegistryUrl(inputs) {
+  if (KNOWN_SENSOR_REGISTRIES.includes(inputs.sensorRegistryUrl.toLowerCase())) {
+    return;
+  }
+
+  if (!inputs.allowCustomRegistry) {
+    throw new Error(
+      `Registry ${inputs.sensorRegistryUrl} is not a known Wiz registry ` +
+        `(${KNOWN_SENSOR_REGISTRIES.join(", ")}). ` +
+        "Set allow-custom-registry: true to pull the Wiz Sensor image from a custom registry.",
+    );
+  }
+
+  emitWarning(`Pulling the Wiz Sensor image from non-Wiz registry ${inputs.sensorRegistryUrl}.`);
 }
 
 const PASSTHROUGH_ENV_ALLOWLIST = [
@@ -453,6 +478,8 @@ async function runMain() {
 
   const inputs = getInputs();
   debugLogsEnabled = inputs.debugLogs;
+
+  validateRegistryUrl(inputs);
 
   const fullImage = buildImageReference(inputs);
 
