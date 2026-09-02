@@ -268,18 +268,43 @@ function buildImageReference(inputs) {
   return `${inputs.sensorRegistryUrl}/${inputs.sensorImageName}:${inputs.tag}`;
 }
 
+const PASSTHROUGH_ENV_ALLOWLIST = [
+  "GITHUB_ACTION",
+  "GITHUB_ACTIONS",
+  "GITHUB_ACTOR",
+  "GITHUB_JOB",
+  "GITHUB_REF",
+  "GITHUB_REF_NAME",
+  "GITHUB_REF_TYPE",
+  "GITHUB_REPOSITORY",
+  "GITHUB_REPOSITORY_ID",
+  "GITHUB_REPOSITORY_OWNER",
+  "GITHUB_REPOSITORY_OWNER_ID",
+  "GITHUB_RUN_ATTEMPT",
+  "GITHUB_RUN_ID",
+  "GITHUB_SERVER_URL",
+  "GITHUB_SHA",
+  "GITHUB_WORKFLOW",
+  "GITHUB_WORKFLOW_REF",
+  "GITHUB_WORKFLOW_SHA",
+  "RUNNER_ARCH",
+  "RUNNER_ENVIRONMENT",
+  "RUNNER_NAME",
+  "RUNNER_OS",
+  "RUNNER_TRACKING_ID",
+];
+
 function collectPassthroughEnv() {
-  const PASSTHROUGH_ENV_PREFIXES = ["GITHUB_", "RUNNER_"];
   const result = {};
 
-  for (const [name, value] of Object.entries(process.env)) {
+  for (const name of PASSTHROUGH_ENV_ALLOWLIST) {
+    const value = process.env[name];
+
     if (value === undefined) {
       continue;
     }
 
-    if (PASSTHROUGH_ENV_PREFIXES.some((prefix) => name.startsWith(prefix))) {
-      result[name] = value;
-    }
+    result[name] = value;
   }
 
   debugLog(`Passthrough env vars: ${Object.keys(result).sort().join(", ") || "(none)"}`);
