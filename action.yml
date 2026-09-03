@@ -40,6 +40,14 @@ inputs:
     description: "Container registry hostname for the Wiz Sensor image"
     required: false
     default: "wizio.azurecr.io"
+  allow-custom-registry:
+    description: "Allow pulling the Wiz Sensor image from a registry that is not a known Wiz registry"
+    required: false
+    default: "false"
+  skip-image-verification:
+    description: "Skip cryptographic verification of the Wiz Sensor image signature before starting it"
+    required: false
+    default: "false"
   sensor-image-name:
     description: "Wiz Sensor image name"
     required: false

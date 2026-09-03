@@ -1,5 +1,6 @@
 const fs = require("fs");
 const { spawn } = require("child_process");
+const { verifySensorImageSignature } = require("./image-verify");
 
 const STARTED_STATE_KEY = "WIZ_SENSOR_STARTED";
 const CONTAINER_ID_STATE_KEY = "WIZ_SENSOR_CONTAINER_ID";
@@ -8,6 +9,14 @@ const GENERATE_SUPPORT_PACKAGE_STATE_KEY = "WIZ_SENSOR_GENERATE_SUPPORT_PACKAGE"
 const SUCCESS_STATE_KEY = "WIZ_SENSOR_SUCCESS";
 const SKIPPED_STATE_KEY = "WIZ_SENSOR_SKIPPED";
 const DEFAULT_SENSOR_REGISTRY_URL = "wizio.azurecr.io";
+// Wiz-operated registries that the sensor image is published to. Any other
+// registry requires the allow-custom-registry opt-in.
+const KNOWN_SENSOR_REGISTRIES = [
+  "wizio.azurecr.io",
+  "registry.wiz.io",
+  "wizfedramp.azurecr.us",
+  "registryfedrampwizio.azurecr.us",
+];
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
 const ACTION_VERSION = "0.9.5";
@@ -229,6 +238,8 @@ function getInputs() {
   resolved.debugLogs = parseBooleanInput(getInput("debug-logs", "false"));
   resolved.generateSupportPackage = parseBooleanInput(getInput("generate-support-package", "false"));
   resolved.extraEnv = parseExtraEnv(getRawInput("extra-env"));
+  resolved.allowCustomRegistry = parseBooleanInput(getInput("allow-custom-registry", "false"));
+  resolved.skipImageVerification = parseBooleanInput(getInput("skip-image-verification", "false"));
   resolved.sensorRegistryUrl = getTrimmedInput("sensor-registry-url", DEFAULT_SENSOR_REGISTRY_URL);
   resolved.sensorImageName = getTrimmedInput("sensor-image-name", DEFAULT_SENSOR_IMAGE_NAME);
   resolved.sensorContainerName = getTrimmedInput("sensor-container-name", DEFAULT_SENSOR_CONTAINER_NAME);
@@ -268,18 +279,59 @@ function buildImageReference(inputs) {
   return `${inputs.sensorRegistryUrl}/${inputs.sensorImageName}:${inputs.tag}`;
 }
 
+function validateRegistryUrl(inputs) {
+  if (KNOWN_SENSOR_REGISTRIES.includes(inputs.sensorRegistryUrl.toLowerCase())) {
+    return;
+  }
+
+  if (!inputs.allowCustomRegistry) {
+    throw new Error(
+      `Registry ${inputs.sensorRegistryUrl} is not a known Wiz registry ` +
+        `(${KNOWN_SENSOR_REGISTRIES.join(", ")}). ` +
+        "Set allow-custom-registry: true to pull the Wiz Sensor image from a custom registry.",
+    );
+  }
+
+  emitWarning(`Pulling the Wiz Sensor image from non-Wiz registry ${inputs.sensorRegistryUrl}.`);
+}
+
+const PASSTHROUGH_ENV_ALLOWLIST = [
+  "GITHUB_ACTION",
+  "GITHUB_ACTIONS",
+  "GITHUB_ACTOR",
+  "GITHUB_JOB",
+  "GITHUB_REF",
+  "GITHUB_REF_NAME",
+  "GITHUB_REF_TYPE",
+  "GITHUB_REPOSITORY",
+  "GITHUB_REPOSITORY_ID",
+  "GITHUB_REPOSITORY_OWNER",
+  "GITHUB_REPOSITORY_OWNER_ID",
+  "GITHUB_RUN_ATTEMPT",
+  "GITHUB_RUN_ID",
+  "GITHUB_SERVER_URL",
+  "GITHUB_SHA",
+  "GITHUB_WORKFLOW",
+  "GITHUB_WORKFLOW_REF",
+  "GITHUB_WORKFLOW_SHA",
+  "RUNNER_ARCH",
+  "RUNNER_ENVIRONMENT",
+  "RUNNER_NAME",
+  "RUNNER_OS",
+  "RUNNER_TRACKING_ID",
+];
+
 function collectPassthroughEnv() {
-  const PASSTHROUGH_ENV_PREFIXES = ["GITHUB_", "RUNNER_"];
   const result = {};
 
-  for (const [name, value] of Object.entries(process.env)) {
+  for (const name of PASSTHROUGH_ENV_ALLOWLIST) {
+    const value = process.env[name];
+
     if (value === undefined) {
       continue;
     }
 
-    if (PASSTHROUGH_ENV_PREFIXES.some((prefix) => name.startsWith(prefix))) {
-      result[name] = value;
-    }
+    result[name] = value;
   }
 
   debugLog(`Passthrough env vars: ${Object.keys(result).sort().join(", ") || "(none)"}`);
@@ -338,6 +390,66 @@ function buildDockerRunArgs(fullImage, inputs) {
   );
 
   return args;
+}
+
+async function resolveLocalImageDigest(fullImage, inputs) {
+  const result = await runCommand("docker", [
+    "image",
+    "inspect",
+    "--format",
+    "{{json .RepoDigests}}",
+    fullImage,
+  ]);
+  const repoDigests = JSON.parse(result.stdout.trim());
+  const repository = `${inputs.sensorRegistryUrl}/${inputs.sensorImageName}`.toLowerCase();
+  const entry = (repoDigests || []).find((candidate) => candidate.split("@")[0] === repository);
+
+  if (!entry) {
+    throw new Error(
+      `Could not determine the registry digest of ${fullImage}: the local image carries no digest ` +
+        `for ${repository}. Images loaded outside of docker pull cannot be verified`,
+    );
+  }
+
+  return entry.split("@")[1];
+}
+
+// Returns the immutable digest reference to start the container from, so the
+// verified bytes are the bytes that run, or null when verification fails.
+// Verification failures must never break the customer's workflow: the caller
+// skips sensor startup and the job continues without sensor monitoring.
+async function verifySensorImage(inputs, fullImage) {
+  if (inputs.skipImageVerification) {
+    emitWarning("Skipping Wiz Sensor image signature verification (skip-image-verification=true).");
+    return fullImage;
+  }
+
+  const verifyStartMs = Date.now();
+  let imageDigest;
+
+  try {
+    imageDigest = await resolveLocalImageDigest(fullImage, inputs);
+    await verifySensorImageSignature({
+      registryUrl: inputs.sensorRegistryUrl,
+      imageName: inputs.sensorImageName,
+      imageDigest,
+      username: inputs.registryUsername,
+      password: inputs.registryPassword,
+      debugLog,
+    });
+  } catch (error) {
+    emitWarning(
+      `Wiz Sensor image signature verification failed: ${error.message}. ` +
+        "The Wiz Sensor will not be started from this image; the workflow continues without sensor monitoring. " +
+        "Set skip-image-verification: true only if you intentionally run an image not published by Wiz.",
+    );
+    return null;
+  }
+
+  debugLog(`Image signature verification completed after ${elapsedSeconds(verifyStartMs)}s.`);
+  log(`Verified Wiz Sensor image signature for digest ${imageDigest}.`);
+
+  return `${inputs.sensorRegistryUrl}/${inputs.sensorImageName}@${imageDigest}`;
 }
 
 async function isImageAvailableLocally(fullImage) {
@@ -429,12 +541,15 @@ async function runMain() {
   const inputs = getInputs();
   debugLogsEnabled = inputs.debugLogs;
 
+  validateRegistryUrl(inputs);
+
   const fullImage = buildImageReference(inputs);
 
   await ensureDockerAvailable();
 
   if (inputs.installOnly) {
     await pullSensorImage(inputs, fullImage);
+    await verifySensorImage(inputs, fullImage);
     emitNotice(`install-only mode: Wiz Sensor image ${fullImage} pulled and cached. Skipping sensor startup.`);
     return;
   }
@@ -448,7 +563,13 @@ async function runMain() {
     await pullSensorImage(inputs, fullImage);
   }
 
-  const runResult = await runCommand("docker", buildDockerRunArgs(fullImage, inputs));
+  const verifiedImage = await verifySensorImage(inputs, fullImage);
+
+  if (!verifiedImage) {
+    return;
+  }
+
+  const runResult = await runCommand("docker", buildDockerRunArgs(verifiedImage, inputs));
   const containerId = runResult.stdout.trim().split(/\r?\n/).find(Boolean) || "";
 
   if (!containerId) {
