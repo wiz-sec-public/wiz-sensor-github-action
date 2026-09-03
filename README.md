@@ -15,7 +15,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.5
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.6
         with:
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
       # ... your build steps
@@ -59,7 +59,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.5
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.6
         with:
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
           generate-support-package: true
@@ -89,7 +89,7 @@ jobs:
     runs-on: my-image-generation-runner
     snapshot: my-custom-image
     steps:
-      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.5
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.6
         with:
           install-only: true
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
@@ -105,7 +105,7 @@ jobs:
   build:
     runs-on: my-custom-runner
     steps:
-      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.5
+      - uses: wiz-sec-public/wiz-sensor-github-action@v0.9.6
         with:
           token: ${{ secrets.WIZ_SENSOR_TOKEN }}
       # ... your build steps
@@ -150,7 +150,7 @@ To explicitly allow the action to start the container on a self-hosted runner, s
 `allow-self-hosted: true`:
 
 ```yaml
-- uses: wiz-sec-public/wiz-sensor-github-action@v0.9.5
+- uses: wiz-sec-public/wiz-sensor-github-action@v0.9.6
   with:
     token: ${{ secrets.WIZ_SENSOR_TOKEN }}
     allow-self-hosted: true

@@ -19,7 +19,7 @@ const KNOWN_SENSOR_REGISTRIES = [
 ];
 const DEFAULT_SENSOR_IMAGE_NAME = "sensor";
 const DEFAULT_SENSOR_CONTAINER_NAME = "wiz-sensor";
-const ACTION_VERSION = "0.9.5";
+const ACTION_VERSION = "0.9.6";
 
 let debugLogsEnabled = false;
 
