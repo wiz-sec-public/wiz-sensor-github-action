@@ -43,6 +43,17 @@ The token must be a JSON object with exactly these fields:
 | `sensor-registry-url` | No | Container registry hostname for the Wiz Sensor image. Defaults to `wizio.azurecr.io`. Other Wiz registries (e.g. `wizfedramp.azurecr.us` for FedRAMP) are accepted as-is; any non-Wiz registry additionally requires `allow-custom-registry: true`. |
 | `allow-custom-registry` | No | Allow pulling the Wiz Sensor image from a registry that is not a known Wiz registry. Defaults to `false`. |
 | `skip-image-verification` | No | Skip cryptographic verification of the Wiz Sensor image signature before starting it. Defaults to `false`. |
+| `supply-chain-gateway` | No | Route npm on the runner through the Wiz supply chain gateway. Defaults to `true`. See below. |
+
+## Supply chain gateway
+
+With `supply-chain-gateway: true` (the default) the sensor points npm at the Wiz
+supply chain gateway. The sensor writes a managed `~/.npmrc` for each login user
+on the runner, with a short-lived credential, before the action reports the
+sensor ready. Later steps that run `npm install` download packages through the
+gateway. A step that sets its own npm user config bypasses the managed file for
+the rest of the job, for example `setup-node` with `registry-url`. Set
+`supply-chain-gateway: false` to leave npm unchanged.
 
 ## Generating a support package
 

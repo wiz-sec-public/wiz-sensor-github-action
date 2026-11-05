@@ -36,6 +36,10 @@ inputs:
   extra-env:
     description: "Newline-delimited KEY=VALUE environment entries to pass to the sensor container"
     required: false
+  supply-chain-gateway:
+    description: "Route npm on the runner through the Wiz supply chain gateway. The sensor writes a managed .npmrc for every login user before the action reports ready."
+    required: false
+    default: "true"
   sensor-registry-url:
     description: "Container registry hostname for the Wiz Sensor image"
     required: false

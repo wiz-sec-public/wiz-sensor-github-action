@@ -238,6 +238,7 @@ function getInputs() {
   resolved.debugLogs = parseBooleanInput(getInput("debug-logs", "false"));
   resolved.generateSupportPackage = parseBooleanInput(getInput("generate-support-package", "false"));
   resolved.extraEnv = parseExtraEnv(getRawInput("extra-env"));
+  resolved.supplyChainGateway = parseBooleanInput(getInput("supply-chain-gateway", "true"));
   resolved.allowCustomRegistry = parseBooleanInput(getInput("allow-custom-registry", "false"));
   resolved.skipImageVerification = parseBooleanInput(getInput("skip-image-verification", "false"));
   resolved.sensorRegistryUrl = getTrimmedInput("sensor-registry-url", DEFAULT_SENSOR_REGISTRY_URL);
@@ -357,6 +358,10 @@ function buildDockerRunArgs(fullImage, inputs) {
     WIZ_CGROUP_LIMITS_AFTER_INIT: "true",
     WIZ_REGEX_POOL_BACKEND: "std",
     WIZ_SKIP_LD_OVERRIDES: "true",
+    WIZ_ENABLE_SUPPLY_CHAIN_GATEWAY: inputs.supplyChainGateway ? "true" : "false",
+    // The next step of the job can run npm immediately. Thus the sensor configures npm
+    // before it answers the readiness check, not in the background.
+    WIZ_SUPPLY_CHAIN_GATEWAY_SYNC_INSTALL: "true",
     ...collectPassthroughEnv(),
   };
 
